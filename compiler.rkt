@@ -77,7 +77,55 @@
 
 ;; remove-complex-opera* : R1 -> R1
 (define (remove-complex-opera* p)
-  (error "TODO: code goes here (remove-complex-opera*)"))
+  (match p
+    [(Program info e) (Program info (rco_exp e (lambda (x) x)))]))
+
+(define (atom? e)
+  (match e
+    [(Var _) true]
+    [(Int _) true]
+    [else false]))
+
+(define (complex? e)
+  (not (atom? e)))
+
+(define (rco_atom e ctx)
+  (match e
+    [(Prim op (list (? atom? e1) (? atom? e2)))
+     (ctx e)]
+    [(Prim op (list (? complex? e1) (? atom? e2)))
+     (rco_exp e1 (lambda (ee1)
+                   (let ([n (gensym)])
+                     (ctx (Let n ee1 (Prim op (list (Var n) e2)))))))]
+    [(Prim op (list (? atom? e1) (? complex? e2)))
+     (rco_exp e2 (lambda (ee2)
+                   (let ([n (gensym)])
+                     (ctx (Let n ee2 (Prim op (list e1 (Var n))))))))]
+    [(Prim op (list (? complex? e1) (? complex? e2)))
+     (rco_exp e1 (lambda (ee1)
+                   (rco_exp e2 (lambda (ee2)
+                                 (let ([n1 (gensym)]
+                                       [n2 (gensym)])
+                                   (ctx (Let n1 ee1 (Let n2 ee2 (Prim op (list (Var n1) (Var n2)))))))))))]
+    [(Prim op (list (? atom? e1)))
+     (ctx e)]
+    [(Prim op (list (? complex? e1)))
+     (rco_exp e1 (lambda (ee1)
+                  (let ([n1 (gensym)])
+                    (ctx (Let n1 ee1 (Prim op (list (Var n1))))))))]
+    [else (error "unkown exp")]))
+
+(define (rco_exp e ctx)
+  (match e
+      [(Var x)
+       (ctx e)]
+      [(Int n) (ctx e)]
+      [(Let x ep body)
+       (rco_exp ep (lambda (e1)
+                     (rco_exp body (lambda (e2)
+                                     (ctx (Let x e1 e2))))))]
+      [(Prim _ _)
+       (rco_atom e ctx)]))
 
 ;; explicate-control : R1 -> C0
 (define (explicate-control p)
@@ -105,7 +153,7 @@
 (define compiler-passes
   `( ("uniquify" ,uniquify ,interp-Lvar ,type-check-Lvar)
      ;; Uncomment the following passes as you finish them.
-     ;; ("remove complex opera*" ,remove-complex-opera* ,interp-Lvar ,type-check-Lvar)
+     ("remove complex opera*" ,remove-complex-opera* ,interp-Lvar ,type-check-Lvar)
      ;; ("explicate control" ,explicate-control ,interp-Cvar ,type-check-Cvar)
      ;; ("instruction selection" ,select-instructions ,interp-x86-0)
      ;; ("assign homes" ,assign-homes ,interp-x86-0)
