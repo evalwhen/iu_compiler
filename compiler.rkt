@@ -78,7 +78,9 @@
 ;; remove-complex-opera* : R1 -> R1
 (define (remove-complex-opera* p)
   (match p
-    [(Program info e) (Program info (rco_exp e (lambda (x) x)))]))
+    ;; [(Program info e) (Program info (rco_exp2 e (lambda (x) x)))]
+    [(Program info e) (Program info (rco_exp2 e))]
+    ))
 
 (define (atom? e)
   (match e
@@ -127,9 +129,55 @@
       [(Prim _ _)
        (rco_atom e ctx)]))
 
-;; explicate-control : R1 -> C0
+(define (rco_atom2 e)
+  (let ([n (gensym)])
+    (values n (list (cons n (rco_exp2 e))))))
+
+(define (rco_exp2 e)
+  (match e
+      [(Var x) e]
+      [(Int n) e]
+      [(Let x ep body)
+       (Let x (rco_exp2 ep) (rco_exp2 body))]
+      [(Prim op es)
+       (let-values ([(args envs) (for/fold ([args '()]
+                                            [newenv '()])
+                                           ([e es])
+                                   (if (complex? e)
+                                       (let-values ([(var en) (rco_atom2 e)])
+                                         (values (cons (Var var) args)
+                                                 (append en newenv)))
+                                       (values (cons e args)
+                                               newenv)))])
+         (println envs)
+         (build_lets envs (Prim op args)))]))
+
+(define (build_lets envs body)
+  (if (null? envs)
+      body
+      (Let (car (car envs))
+           (cdr (car envs))
+           (build_lets (cdr envs) body))))
+
+(define (explicate_tail e)
+  (match e
+    [(Var x) (Return (Var x))]
+    [(Int n) (Return (Int n))]
+    [(Let x rhs body) (explicate_assign rhs x (explicate_tail body))]
+    [(Prim op es) (Return (Prim op es))]
+    [else (error "explicate_tail unhandled case" e)]))
+
+(define (explicate_assign e sym cont)
+  (match e
+    [(Var x) (Seq (Assign (Var sym) (Var x)) cont)] ;; TODO: remove this.
+    [(Int n) (Seq (Assign (Var sym) (Int n)) cont)]
+    [(Let y rhs body) (explicate_assign rhs y (explicate_assign body sym cont))]
+    [(Prim _ _) (Seq (Assign (Var sym) e) cont)]
+    [else (error "explicate_assign unhandled case" e)]))
+
 (define (explicate-control p)
-  (error "TODO: code goes here (explicate-control)"))
+  (match p
+    [(Program info body) (CProgram '()  (list (cons 'start (explicate_tail body))))]))
 
 ;; select-instructions : C0 -> pseudo-x86
 (define (select-instructions p)
@@ -154,7 +202,7 @@
   `( ("uniquify" ,uniquify ,interp-Lvar ,type-check-Lvar)
      ;; Uncomment the following passes as you finish them.
      ("remove complex opera*" ,remove-complex-opera* ,interp-Lvar ,type-check-Lvar)
-     ;; ("explicate control" ,explicate-control ,interp-Cvar ,type-check-Cvar)
+     ("explicate control" ,explicate-control ,interp-Cvar ,type-check-Cvar)
      ;; ("instruction selection" ,select-instructions ,interp-x86-0)
      ;; ("assign homes" ,assign-homes ,interp-x86-0)
      ;; ("patch instructions" ,patch-instructions ,interp-x86-0)
