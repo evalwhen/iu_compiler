@@ -182,8 +182,60 @@
 
 ;; select-instructions : C0 -> pseudo-x86
 (define (select-instructions p)
-  (error "TODO: code goes here (select-instructions)"))
+  (match p
+    [(CProgram info blocks) (X86Program '() )]))
 
+(define (select-instructions-block block intrs)
+  (match block
+    [(cons _ (Return exp)) (append intrs (list ))]))
+
+
+(define (select-instructions-atm atm)
+  (match atm
+    [(Int n) (Imm n)]
+    [(Var n) (Var n)]
+    [else (error "unkown Cvar atom" atm)]))
+
+(define (select-instructions-stmt stmt)
+  (match stmt
+    [(Assign (Var var) (Int n)) (list (Instr 'movq (list (Imm n) (Var var))))]
+    [(Assign (Var var) (Var n)) (list (Instr 'movq (list (Var n) (Var var))))] ;; todo
+    [(Assign (Var var) (Prim 'read _)) (list (Callq 'read_int 0)
+                                             (Instr 'movq (list (Reg 'rax) (Var var))))]
+    [(Assign (Var var) (Prim '- (list atm))) (list (Inst 'negq (list (select-instructions-atm atm))))]
+    [(Assign (Var var) (Prim '+ (list atm1 atm2))) (list (Inst 'movq (list (select-instructions-atm atm1)
+                                                                           (Var var)))
+                                                         (Inst 'addq (list (select-instructions-atm atm2)
+                                                                          (Var var))))]
+    [(Assign (Var var) (Prim '- (list atm1 atm2))) (list (Inst 'movq (list (select-instructions-atm atm2)
+                                                                           (Var var)))
+                                                         (Inst 'subq (list (select-instructions-atm atm1)
+                                                                          (Var var))))]))
+
+(define (select-instructions-tail tail)
+  (match tail
+    [(Return (Prim 'read _)) (list (Callq 'read_int 0))]
+    [(Return (Prim '- (list atm))) (list (Inst 'negq (list (select-instructions-atm atm)))
+                                         (Inst 'movq (list (select-instructions-atm atm)
+                                          (Reg 'rax))))]
+    [(Return (Prim '+ (list atm1 atm2))) (list (list (Inst 'movq (list (select-instructions-atm atm1)
+                                                                       (Reg 'rax)))
+                                                     (Inst 'addq (list (select-instructions-atm atm2)
+                                                                       (Reg 'rax)))))]
+    [(Return (Prim '- (list atm1 atm2))) (list (Inst 'movq (list (select-instructions-atm atm2)
+                                                                 (Reg 'rax)))
+                                               (Inst 'subq (list (select-instructions-atm atm1)
+                                                                 (Reg 'rax))))]
+    [(Return atm) (list (Inst 'movq (list (select-instructions-atm atm)
+                                          (Reg 'rax)))
+                        (Jmp 'conclusion))]
+    [(Seq _ _) (select-instructions-seq tail)]
+    ))
+
+(define (select-instructions-seq seq)
+  (match seq
+    [(Seq stmt tail) (append (select-instructions-stmt stmt)
+                             (select-instructions-tail tail))]))
 ;; assign-homes : pseudo-x86 -> pseudo-x86
 (define (assign-homes p)
   (error "TODO: code goes here (assign-homes)"))
