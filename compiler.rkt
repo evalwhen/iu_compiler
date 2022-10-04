@@ -169,8 +169,9 @@
 
 (define (explicate_assign e sym cont)
   (match e
-    [(Var x) (Seq (Assign (Var sym) (Var x)) cont)] ;; TODO: remove this.
+    [(Var x) (Seq (Assign (Var sym) (Var x)) cont)]
     [(Int n) (Seq (Assign (Var sym) (Int n)) cont)]
+    [(Let y rhs (? Var? _)) (explicate_assign rhs sym cont)];; optimize: the body of Let is a variable
     [(Let y rhs body) (explicate_assign rhs y (explicate_assign body sym cont))]
     [(Prim _ _) (Seq (Assign (Var sym) e) cont)]
     [else (error "explicate_assign unhandled case" e)]))
