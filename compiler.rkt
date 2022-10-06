@@ -203,19 +203,34 @@
   (match stmt
     [(Assign (Var var) (Int n)) (list (Instr 'movq (list (Imm n) (Var var))))]
     [(Assign (Var var) (Var n)) (list (Instr 'movq (list (Var n) (Var var))))] ;; todo
-    [(Assign (Var var) (Prim 'read _)) (list (Callq 'read_int 0)
-                                             (Instr 'movq (list (Reg 'rax) (Var var))))]
-    [(Assign (Var var) (Prim '- (list atm))) (list (Instr 'movq (list (select-instructions-atm atm)
-                                                                      (Var var)))
-                                                   (Instr 'negq (list (Var var))))]
-    [(Assign (Var var) (Prim '+ (list atm1 atm2))) (list (Instr 'movq (list (select-instructions-atm atm1)
-                                                                           (Var var)))
-                                                         (Instr 'addq (list (select-instructions-atm atm2)
-                                                                          (Var var))))]
-    [(Assign (Var var) (Prim '- (list atm1 atm2))) (list (Instr 'movq (list (select-instructions-atm atm2)
-                                                                           (Var var)))
-                                                         (Instr 'subq (list (select-instructions-atm atm1)
-                                                                          (Var var))))]))
+    [(Assign (Var var) (Prim 'read _))
+     (list (Callq 'read_int 0)
+           (Instr 'movq (list (Reg 'rax) (Var var))))]
+
+    [(Assign (Var var) (Prim '- (list atm)))
+     (list (Instr 'movq (list (select-instructions-atm atm)
+                              (Var var)))
+           (Instr 'negq (list (Var var))))]
+
+    [(Assign (Var var) (Prim '+ (list (Var var) atm2)))
+     (list (Instr 'addq (list (select-instructions-atm atm2)
+                              (Var var))))]
+
+    [(Assign (Var var) (Prim '+ (list atm1 (Var var))))
+     (list (Instr 'addq (list (select-instructions-atm atm1)
+                              (Var var))))]
+
+    [(Assign (Var var) (Prim '+ (list atm1 atm2)))
+     (list (Instr 'movq (list (select-instructions-atm atm1)
+                              (Var var)))
+           (Instr 'addq (list (select-instructions-atm atm2)
+                              (Var var))))]
+
+    [(Assign (Var var) (Prim '- (list atm1 atm2)))
+     (list (Instr 'movq (list (select-instructions-atm atm2)
+                              (Var var)))
+           (Instr 'subq (list (select-instructions-atm atm1)
+                              (Var var))))]))
 
 (define (select-instructions-tail tail)
   (match tail
