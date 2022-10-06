@@ -4,6 +4,7 @@
 (require "interp-Lint.rkt")
 (require "interp-Lvar.rkt")
 (require "interp-Cvar.rkt")
+(require "interp.rkt")
 (require "type-check-Lvar.rkt")
 (require "type-check-Cvar.rkt")
 (require "utilities.rkt")
@@ -183,11 +184,13 @@
 ;; select-instructions : C0 -> pseudo-x86
 (define (select-instructions p)
   (match p
-    [(CProgram info blocks) (X86Program '() )]))
+    [(CProgram info blocks) (X86Program info (for/fold ([result (hash)])
+                                                       ([block blocks])
+                                               (hash-set result (car block) (select-instructions-block block))))]))
 
-(define (select-instructions-block block intrs)
+(define (select-instructions-block block)
   (match block
-    [(cons _ (Return exp)) (append intrs (list ))]))
+    [(cons _ tail) (Block '() (select-instructions-tail tail))]))
 
 
 (define (select-instructions-atm atm)
@@ -202,32 +205,35 @@
     [(Assign (Var var) (Var n)) (list (Instr 'movq (list (Var n) (Var var))))] ;; todo
     [(Assign (Var var) (Prim 'read _)) (list (Callq 'read_int 0)
                                              (Instr 'movq (list (Reg 'rax) (Var var))))]
-    [(Assign (Var var) (Prim '- (list atm))) (list (Inst 'negq (list (select-instructions-atm atm))))]
-    [(Assign (Var var) (Prim '+ (list atm1 atm2))) (list (Inst 'movq (list (select-instructions-atm atm1)
+    [(Assign (Var var) (Prim '- (list atm))) (list (Instr 'movq (list (select-instructions-atm atm)
+                                                                      (Var var)))
+                                                   (Instr 'negq (list (Var var))))]
+    [(Assign (Var var) (Prim '+ (list atm1 atm2))) (list (Instr 'movq (list (select-instructions-atm atm1)
                                                                            (Var var)))
-                                                         (Inst 'addq (list (select-instructions-atm atm2)
+                                                         (Instr 'addq (list (select-instructions-atm atm2)
                                                                           (Var var))))]
-    [(Assign (Var var) (Prim '- (list atm1 atm2))) (list (Inst 'movq (list (select-instructions-atm atm2)
+    [(Assign (Var var) (Prim '- (list atm1 atm2))) (list (Instr 'movq (list (select-instructions-atm atm2)
                                                                            (Var var)))
-                                                         (Inst 'subq (list (select-instructions-atm atm1)
+                                                         (Instr 'subq (list (select-instructions-atm atm1)
                                                                           (Var var))))]))
 
 (define (select-instructions-tail tail)
   (match tail
     [(Return (Prim 'read _)) (list (Callq 'read_int 0))]
-    [(Return (Prim '- (list atm))) (list (Inst 'negq (list (select-instructions-atm atm)))
-                                         (Inst 'movq (list (select-instructions-atm atm)
-                                          (Reg 'rax))))]
-    [(Return (Prim '+ (list atm1 atm2))) (list (list (Inst 'movq (list (select-instructions-atm atm1)
-                                                                       (Reg 'rax)))
-                                                     (Inst 'addq (list (select-instructions-atm atm2)
-                                                                       (Reg 'rax)))))]
-    [(Return (Prim '- (list atm1 atm2))) (list (Inst 'movq (list (select-instructions-atm atm2)
-                                                                 (Reg 'rax)))
-                                               (Inst 'subq (list (select-instructions-atm atm1)
-                                                                 (Reg 'rax))))]
-    [(Return atm) (list (Inst 'movq (list (select-instructions-atm atm)
-                                          (Reg 'rax)))
+    [(Return (Prim '- (list atm))) (list (Instr 'movq (list (select-instructions-atm atm)
+                                                            (Reg 'rax)))
+                                         (Instr 'negq (list (Reg 'rax)))
+                                         )]
+    [(Return (Prim '+ (list atm1 atm2))) (list (Instr 'movq (list (select-instructions-atm atm1)
+                                                                  (Reg 'rax)))
+                                               (Instr 'addq (list (select-instructions-atm atm2)
+                                                                  (Reg 'rax))))]
+    [(Return (Prim '- (list atm1 atm2))) (list (Instr 'movq (list (select-instructions-atm atm2)
+                                                                  (Reg 'rax)))
+                                               (Instr 'subq (list (select-instructions-atm atm1)
+                                                                  (Reg 'rax))))]
+    [(Return atm) (list (Instr 'movq (list (select-instructions-atm atm)
+                                           (Reg 'rax)))
                         (Jmp 'conclusion))]
     [(Seq _ _) (select-instructions-seq tail)]
     ))
@@ -256,7 +262,7 @@
      ;; Uncomment the following passes as you finish them.
      ("remove complex opera*" ,remove-complex-opera* ,interp-Lvar ,type-check-Lvar)
      ("explicate control" ,explicate-control ,interp-Cvar ,type-check-Cvar)
-     ;; ("instruction selection" ,select-instructions ,interp-x86-0)
+     ("instruction selection" ,select-instructions ,interp-x86-0)
      ;; ("assign homes" ,assign-homes ,interp-x86-0)
      ;; ("patch instructions" ,patch-instructions ,interp-x86-0)
      ;; ("prelude-and-conclusion" ,prelude-and-conclusion ,interp-x86-0)
