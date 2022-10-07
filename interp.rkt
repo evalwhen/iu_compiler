@@ -258,16 +258,16 @@
 
     (define/public (interp-x86-exp env)
       (lambda (ast)
-	(copious "interp-x86-exp" ast)
+        (copious "interp-x86-exp" ast)
         (define result
-	(match ast
-	   [(or (Var x) (Reg x))
-	    (lookup (get-name ast) env)]
-	   [(Deref r n)
-	    (lookup (get-name ast) env)]
-	   [(Imm n) n]
-	   [else
-	    (error 'interp-R1-class/interp-x86-exp "unhandled ~a" ast)]))
+          (match ast
+            [(or (Var x) (Reg x))
+             (lookup (get-name ast) env)]
+            [(Deref r n)
+             (lookup (get-name ast) env)]
+            [(Imm n) n]
+            [else
+             (error 'interp-R1-class/interp-x86-exp "unhandled ~a" ast)]))
         (copious "R1/interp-x86-exp" (observe-value result))
         result))
 

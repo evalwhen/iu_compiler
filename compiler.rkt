@@ -234,19 +234,21 @@
 
 (define (select-instructions-tail tail)
   (match tail
-    [(Return (Prim 'read _)) (list (Callq 'read_int 0))]
+    [(Return (Prim 'read _)) (list (Callq 'read_int 0) (Jmp 'conclusion))]
     [(Return (Prim '- (list atm))) (list (Instr 'movq (list (select-instructions-atm atm)
                                                             (Reg 'rax)))
                                          (Instr 'negq (list (Reg 'rax)))
-                                         )]
+                                         (Jmp 'conclusion))]
     [(Return (Prim '+ (list atm1 atm2))) (list (Instr 'movq (list (select-instructions-atm atm1)
                                                                   (Reg 'rax)))
                                                (Instr 'addq (list (select-instructions-atm atm2)
-                                                                  (Reg 'rax))))]
+                                                                  (Reg 'rax)))
+                                               (Jmp 'conclusion))]
     [(Return (Prim '- (list atm1 atm2))) (list (Instr 'movq (list (select-instructions-atm atm2)
                                                                   (Reg 'rax)))
                                                (Instr 'subq (list (select-instructions-atm atm1)
-                                                                  (Reg 'rax))))]
+                                                                  (Reg 'rax)))
+                                               (Jmp 'conclusion))]
     [(Return atm) (list (Instr 'movq (list (select-instructions-atm atm)
                                            (Reg 'rax)))
                         (Jmp 'conclusion))]
@@ -260,8 +262,8 @@
 ;; assign-homes : pseudo-x86 -> pseudo-x86
 (define (assign-homes p)
   (match p
-    [(X86Program info blocks) (let-values ([(vars n) (assign-stacks info)])
-                                (X86Program (dict-set info 'stack-space (* (/ n 8) -64))
+    [(X86Program info blocks) (let-values ([(vars n) (assign-stacks (dict-ref info 'locals-types))])
+                                (X86Program (dict-set info 'stack-space (* 8 (- n 1)))
                                             (for/fold ([res (hash)])
                                                       ([(key block) (in-dict blocks)])
                                               (hash-set res key (assign-block vars block)))))]))
@@ -285,10 +287,10 @@
 ;; alist -> alist
 (define (assign-stacks vars)
   (for/fold ([stacks (hash)]
-             [n -8])
+             [n 1])
             ([var (in-dict-keys vars)])
-    (values (hash-set stacks var (Deref 'rbp n))
-            (* 2 n))))
+    (values (hash-set stacks var (Deref 'rbp (* n -8)))
+            (+ n 1))))
 
 
 ;; patch-instructions : psuedo-x86 -> x86
@@ -307,7 +309,7 @@
 (define (rewrite-double-memory instr)
   (match instr
     [(Instr name (list (Deref reg1 off1) (Deref reg2 off2)))
-     (list (Instr name (list (Deref reg1 off1) (Reg 'rax)))
+     (list (Instr 'movq (list (Deref reg1 off1) (Reg 'rax)))
            (Instr name (list (Reg 'rax) (Deref reg2 off2))))]
     [else (list instr)]))
 
@@ -316,8 +318,8 @@
   (match p
     [(X86Program info blocks)
      (let ([start (dict-ref blocks 'start false)]
-           [preclude (build_prelude)]
-           [conclusion (build_conclusion)])
+           [preclude (Block '() (build_prelude))]
+           [conclusion (Block '() (build_conclusion))])
        (if (eq? (system-type 'os) 'macosx)
            (X86Program info (hash-set* (hash) 'start start 'main preclude 'conclusion conclusion))
            (X86Program info (hash-set* (hash) '_start start '_main preclude '_conclusion conclusion))))]))
