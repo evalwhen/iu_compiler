@@ -290,9 +290,26 @@
     (values (hash-set stacks var (Deref 'rbp n))
             (* 2 n))))
 
+
 ;; patch-instructions : psuedo-x86 -> x86
 (define (patch-instructions p)
-  (error "TODO: code goes here (patch-instructions)"))
+  (match p
+    [(X86Program info blocks) (X86Program info (for/fold ([res (hash)])
+                                                         ([(key block) (in-dict blocks)])
+                                                 (hash-set res key (patch-instructions-block block))))]))
+(define (patch-instructions-block block)
+  (match block
+    [(Block info instrs)
+     (Block info (for/fold ([res '()])
+                           ([instr instrs])
+                   (append res (rewrite-double-memory instr))))]))
+
+(define (rewrite-double-memory instr)
+  (match instr
+    [(Instr name (list (Deref reg1 off1) (Deref reg2 off2)))
+     (list (Instr name (list (Deref reg1 off1) (Reg 'rax)))
+           (Instr name (list (Reg 'rax) (Deref reg2 off2))))]
+    [else (list instr)]))
 
 ;; prelude-and-conclusion : x86 -> x86
 (define (prelude-and-conclusion p)
@@ -308,6 +325,6 @@
      ("explicate control" ,explicate-control ,interp-Cvar ,type-check-Cvar)
      ("instruction selection" ,select-instructions ,interp-x86-0)
      ("assign homes" ,assign-homes ,interp-x86-0)
-     ;; ("patch instructions" ,patch-instructions ,interp-x86-0)
+     ("patch instructions" ,patch-instructions ,interp-x86-0)
      ;; ("prelude-and-conclusion" ,prelude-and-conclusion ,interp-x86-0)
      ))
