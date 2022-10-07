@@ -260,11 +260,13 @@
 ;; assign-homes : pseudo-x86 -> pseudo-x86
 (define (assign-homes p)
   (match p
-    [(X86Program info blocks) (X86Program info (let-values ([(vars _) (assign-stacks info)])
-                                                 (for/fold ([res (hash)])
-                                                           ([(key block) (in-dict blocks)])
-                                                   (hash-set res key (assign-block vars block)))))]))
+    [(X86Program info blocks) (let-values ([(vars n) (assign-stacks info)])
+                                (X86Program (dict-set info 'stack-space (* (/ n 8) -64))
+                                            (for/fold ([res (hash)])
+                                                      ([(key block) (in-dict blocks)])
+                                              (hash-set res key (assign-block vars block)))))]))
 
+;;TODO: refactor this
 (define (assign-block env block)
   (match block
     [(Block info instrs)
